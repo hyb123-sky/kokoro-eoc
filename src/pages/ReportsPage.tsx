@@ -3,7 +3,7 @@
 // ============================================
 
 import React from 'react';
-import { FileText, Download, Calendar, Filter, BarChart3, PieChart, TrendingUp } from 'lucide-react';
+import { FileText, Download, Calendar, BarChart3, PieChart, TrendingUp } from 'lucide-react';
 
 const ReportsPage: React.FC = () => {
   const reports = [

@@ -1,7 +1,6 @@
 // ============================================
 // KOKORO EOC - Incidents Page
 // ============================================
-// インシデント管理ページ（フルスクリーン）
 
 import React, { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -12,9 +11,7 @@ import {
   Plus,
   RefreshCw,
   ChevronRight,
-  Clock,
   MapPin,
-  User,
   Grid,
   List,
 } from 'lucide-react';
@@ -151,10 +148,9 @@ const IncidentTableRow: React.FC<{
 // Main Incidents Page
 // ============================================
 const IncidentsPage: React.FC = () => {
-  const { id } = useParams();
+  useParams(); // Keep for future use
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
-  const [filterState, setFilterState] = useState<string | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<UnifiedIncident | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -229,10 +225,9 @@ const IncidentsPage: React.FC = () => {
             !inc.number.toLowerCase().includes(q)) return false;
       }
       if (filterPriority && inc.priority !== filterPriority) return false;
-      if (filterState && inc.state !== filterState) return false;
       return true;
     });
-  }, [incidents, searchQuery, filterPriority, filterState]);
+  }, [incidents, searchQuery, filterPriority]);
 
   // Stats
   const stats = {

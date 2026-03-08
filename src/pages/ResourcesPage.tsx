@@ -1,13 +1,11 @@
 // ============================================
 // KOKORO EOC - Resources Page
 // ============================================
-// リソース管理ページ
 
 import React, { useState, useMemo } from 'react';
 import {
   Package,
   Users,
-  Truck,
   Heart,
   Droplets,
   Utensils,
@@ -19,12 +17,9 @@ import {
   AlertTriangle,
   CheckCircle,
   MapPin,
-  Clock,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { serviceNowAPI } from '../services/servicenow';
-import { formatDistanceToNow } from 'date-fns';
-import { ja } from 'date-fns/locale';
 import clsx from 'clsx';
 
 // ============================================
@@ -61,7 +56,7 @@ function useKokoroInventory() {
   return useQuery({
     queryKey: ['kokoro-inventory'],
     queryFn: async () => {
-      const response = await serviceNowAPI.getTable<any>(
+      const response = await serviceNowAPI.getTable<Record<string, unknown>>(
         'x_1821654_kokoro_0_kokoro_inventory',
         { limit: 200 }
       );
@@ -79,7 +74,7 @@ function useKokoroVolunteers() {
   return useQuery({
     queryKey: ['kokoro-volunteers'],
     queryFn: async () => {
-      const response = await serviceNowAPI.getTable<any>(
+      const response = await serviceNowAPI.getTable<Record<string, unknown>>(
         'x_1821654_kokoro_0_kokoro_volunteer',
         { limit: 200 }
       );
@@ -240,29 +235,35 @@ const ResourcesPage: React.FC = () => {
   const inventory = useMemo<InventoryItem[]>(() => {
     if (!rawInventory) return [];
     
-    return rawInventory.map((inv: any) => {
-      const itemName = typeof inv.item_name === 'object' 
-        ? inv.item_name?.display_value 
-        : (inv.item_name || '不明な物資');
+    return rawInventory.map((inv: Record<string, unknown>) => {
+      const itemNameRaw = inv.item_name as string | { display_value?: string } | undefined;
+      const itemName = typeof itemNameRaw === 'object' && itemNameRaw !== null
+        ? itemNameRaw.display_value || '不明な物資'
+        : (itemNameRaw as string) || '不明な物資';
       
-      const stockQty = parseInt(inv.stock_quantity || '0', 10);
-      const currentQty = parseInt(inv.current_quantity || inv.stock_quantity || '0', 10);
-      const threshold = parseInt(inv.warning_threshold || '0', 10);
-      const maxCapacity = parseInt(inv.max_capacity || '0', 10);
+      const stockQty = parseInt(String(inv.stock_quantity || '0'), 10);
+      const currentQty = parseInt(String(inv.current_quantity || inv.stock_quantity || '0'), 10);
+      const threshold = parseInt(String(inv.warning_threshold || '0'), 10);
+      const maxCapacity = parseInt(String(inv.max_capacity || '0'), 10);
       
-      const locationName = typeof inv.location === 'object'
-        ? inv.location?.display_value : (inv.location || '');
-      const category = typeof inv.category === 'object'
-        ? inv.category?.display_value : (inv.category || '');
+      const locationRaw = inv.location as string | { display_value?: string } | undefined;
+      const locationName = typeof locationRaw === 'object' && locationRaw !== null
+        ? locationRaw.display_value || ''
+        : (locationRaw as string) || '';
+
+      const categoryRaw = inv.category as string | { display_value?: string } | undefined;
+      const category = typeof categoryRaw === 'object' && categoryRaw !== null
+        ? categoryRaw.display_value || ''
+        : (categoryRaw as string) || '';
 
       let status: InventoryItem['status'] = 'safe';
       if (currentQty <= 0) status = 'depleted';
       else if (currentQty <= threshold) status = 'warning';
 
       return {
-        sys_id: inv.sys_id,
+        sys_id: inv.sys_id as string,
         item_name: itemName,
-        item_code: inv.item_code,
+        item_code: inv.item_code as string | undefined,
         category,
         stock_quantity: stockQty,
         current_quantity: currentQty,
@@ -281,15 +282,22 @@ const ResourcesPage: React.FC = () => {
   // Transform volunteers data
   const volunteers = useMemo<Volunteer[]>(() => {
     if (!rawVolunteers) return [];
-    return rawVolunteers.map((vol: any) => ({
-      sys_id: vol.sys_id,
-      name: typeof vol.name === 'object' ? vol.name?.display_value : (vol.name || '不明'),
-      skills: vol.skills,
-      status: vol.status || 'available',
-      location: vol.location,
-      phone: vol.phone,
-      assignment: vol.current_assignment,
-    }));
+    return rawVolunteers.map((vol: Record<string, unknown>) => {
+      const nameRaw = vol.name as string | { display_value?: string } | undefined;
+      const name = typeof nameRaw === 'object' && nameRaw !== null
+        ? nameRaw.display_value || '不明'
+        : (nameRaw as string) || '不明';
+
+      return {
+        sys_id: vol.sys_id as string,
+        name,
+        skills: vol.skills as string | undefined,
+        status: (vol.status as Volunteer['status']) || 'available',
+        location: vol.location as string | undefined,
+        phone: vol.phone as string | undefined,
+        assignment: vol.current_assignment as string | undefined,
+      };
+    });
   }, [rawVolunteers]);
 
   // Stats

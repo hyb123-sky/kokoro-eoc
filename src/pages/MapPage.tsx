@@ -1,9 +1,8 @@
 // ============================================
 // KOKORO EOC - Full Screen Map Page
 // ============================================
-// フルスクリーンマップページ
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import Map, { Marker, Popup, NavigationControl, ScaleControl, GeolocateControl } from 'react-map-gl';
 import {
   Layers,
@@ -14,7 +13,6 @@ import {
   Eye,
   EyeOff,
   Target,
-  Filter,
   RefreshCw,
   ChevronRight,
 } from 'lucide-react';
@@ -33,7 +31,7 @@ interface MapMarker {
   title: string;
   subtitle?: string;
   severity?: 'low' | 'medium' | 'high' | 'critical';
-  data?: any;
+  data?: unknown;
 }
 
 // ============================================
@@ -72,7 +70,7 @@ const MarkerIcon: React.FC<{ type: MapMarker['type']; severity?: MapMarker['seve
   };
 
   const { icon: Icon, colors } = config[type];
-  const colorClass = (colors as any)[severity || 'default'] || Object.values(colors)[0];
+  const colorClass = (colors as Record<string, string>)[severity || 'default'] || Object.values(colors)[0];
 
   return (
     <div className={clsx(baseClass, colorClass)}>
@@ -139,7 +137,7 @@ const LayerControl: React.FC<{
 // Main Map Page
 // ============================================
 const MapPage: React.FC = () => {
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<{ flyTo: (options: { center: [number, number]; zoom: number; duration: number }) => void } | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
   
   const [layerVisibility, setLayerVisibility] = useState({
@@ -243,12 +241,12 @@ const MapPage: React.FC = () => {
     });
   };
 
-  const mapboxToken = (import.meta as any).env.VITE_MAPBOX_ACCESS_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
   return (
     <div className="h-full relative">
       <Map
-        ref={mapRef}
+        ref={mapRef as React.RefObject<never>}
         mapboxAccessToken={mapboxToken}
         initialViewState={{
           latitude: 35.6762,

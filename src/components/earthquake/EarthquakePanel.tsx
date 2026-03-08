@@ -1,18 +1,17 @@
 // ============================================
-// KOKORO EOC - Earthquake Panel (Full Feature)
+// KOKORO EOC - Earthquake Panel (Self-contained)
 // ============================================
-// 地震活動監視パネル - USGS データ使用
 
 import React from 'react';
 import {
   Activity,
   AlertTriangle,
-  MapPin,
   Clock,
   RefreshCw,
   Waves,
   ExternalLink,
 } from 'lucide-react';
+import { useEarthquakes } from '../../hooks/useQueries';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import clsx from 'clsx';
@@ -46,25 +45,25 @@ const MagnitudeBadge: React.FC<{ magnitude: number }> = ({ magnitude }) => {
 // ============================================
 // Earthquake Card Component
 // ============================================
-const EarthquakeCard: React.FC<{
-  quake: {
-    id: string;
-    properties: {
-      mag: number;
-      place: string;
-      time: number;
-      url: string;
-      tsunami: number;
-    };
-    geometry: {
-      coordinates: [number, number, number];
-    };
+interface EarthquakeData {
+  id: string;
+  properties: {
+    mag: number;
+    place: string;
+    time: number;
+    url: string;
+    tsunami: number;
   };
-}> = ({ quake }) => {
+  geometry: {
+    coordinates: [number, number, number];
+  };
+}
+
+const EarthquakeCard: React.FC<{ quake: EarthquakeData }> = ({ quake }) => {
   const { mag, place, time, url, tsunami } = quake.properties;
   const depth = quake.geometry.coordinates[2];
   
-  const isRecent = Date.now() - time < 3600000; // 1時間以内
+  const isRecent = Date.now() - time < 3600000;
   const isMajor = mag >= 5.0;
 
   const getSeverityIndicator = () => {
@@ -75,15 +74,16 @@ const EarthquakeCard: React.FC<{
   };
 
   return (
-    <div className={clsx(
-      'p-3 rounded-lg border transition-all duration-200',
-      'hover:border-kokoro-accent/50 cursor-pointer',
-      isMajor 
-        ? 'bg-status-critical/5 border-status-critical/30' 
-        : 'bg-kokoro-darker border-kokoro-border',
-      isRecent && !isMajor && 'border-kokoro-warning/30'
-    )}
-    onClick={() => window.open(url, '_blank')}
+    <div 
+      className={clsx(
+        'p-3 rounded-lg border transition-all duration-200',
+        'hover:border-kokoro-accent/50 cursor-pointer',
+        isMajor 
+          ? 'bg-status-critical/5 border-status-critical/30' 
+          : 'bg-kokoro-darker border-kokoro-border',
+        isRecent && !isMajor && 'border-kokoro-warning/30'
+      )}
+      onClick={() => window.open(url, '_blank')}
     >
       <div className="flex items-start gap-3">
         <MagnitudeBadge magnitude={mag} />
@@ -137,7 +137,7 @@ const EarthquakeCard: React.FC<{
 // ============================================
 // Stats Summary Component
 // ============================================
-const StatsSummary: React.FC<{ earthquakes: any[] }> = ({ earthquakes }) => {
+const StatsSummary: React.FC<{ earthquakes: EarthquakeData[] }> = ({ earthquakes }) => {
   const last24h = earthquakes.filter(eq => Date.now() - eq.properties.time < 86400000);
   const major = last24h.filter(eq => eq.properties.mag >= 5.0).length;
   const moderate = last24h.filter(eq => eq.properties.mag >= 4.0 && eq.properties.mag < 5.0).length;
@@ -169,30 +169,23 @@ const StatsSummary: React.FC<{ earthquakes: any[] }> = ({ earthquakes }) => {
 // ============================================
 // Main Earthquake Panel Component
 // ============================================
-interface EarthquakePanelProps {
-  earthquakes: any[];
-  isLoading: boolean;
-  error: boolean;
-  refetch: () => void;
-}
+const EarthquakePanel: React.FC = () => {
+  const {
+    data: earthquakes,
+    isLoading,
+    error,
+    refetch,
+  } = useEarthquakes({ timeRange: 'day', minMagnitude: '2.5' });
 
-const EarthquakePanel: React.FC<EarthquakePanelProps> = ({
-  earthquakes,
-  isLoading,
-  error,
-  refetch
-}) => {
-  // 日本周辺の地震（APIで既にフィルター済みだが念のため）
   const japanEarthquakes = React.useMemo(() => {
     if (!earthquakes || !Array.isArray(earthquakes)) return [];
-    return earthquakes.slice(0, 10); // 最新10件
+    return earthquakes.slice(0, 10);
   }, [earthquakes]);
 
   const totalCount = earthquakes?.length || 0;
 
   return (
     <div className="panel flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
       <div className="panel-header">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-kokoro-accent" />
@@ -213,7 +206,6 @@ const EarthquakePanel: React.FC<EarthquakePanelProps> = ({
         </div>
       </div>
 
-      {/* Content */}
       <div className="panel-content flex-1 overflow-hidden flex flex-col">
         {isLoading ? (
           <div className="space-y-3 p-1">
@@ -241,10 +233,7 @@ const EarthquakePanel: React.FC<EarthquakePanelProps> = ({
           </div>
         ) : (
           <>
-            {/* Stats Summary */}
             <StatsSummary earthquakes={earthquakes || []} />
-            
-            {/* Earthquake List */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
               {japanEarthquakes.map((quake) => (
                 <EarthquakeCard key={quake.id} quake={quake} />
@@ -254,7 +243,6 @@ const EarthquakePanel: React.FC<EarthquakePanelProps> = ({
         )}
       </div>
 
-      {/* Footer */}
       <div className="px-3 py-2 border-t border-kokoro-border flex items-center justify-between">
         <span className="text-[10px] text-kokoro-muted">
           データソース: USGS

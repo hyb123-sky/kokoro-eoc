@@ -3,7 +3,7 @@
 // ============================================
 
 import React, { useState, useMemo } from 'react';
-import { Building2, Plus, Search, Filter, Users, MapPin, RefreshCw, Wifi, WifiOff, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Building2, Plus, Search, Users, MapPin, RefreshCw, WifiOff, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useDashboardData } from '../hooks/useQueries';
 import { useMapStore } from '../stores';
 import clsx from 'clsx';
@@ -35,13 +35,13 @@ const SheltersPage: React.FC = () => {
   const totalCapacity = shelters.reduce((sum, s) => sum + (parseInt(s.x_1821654_kokoro_0_capacity || '0')), 0);
   const totalOccupancy = shelters.reduce((sum, s) => sum + (parseInt(s.x_1821654_kokoro_0_current_occupancy || '0')), 0);
 
-  const getStatusConfig = (status: string) => {
+  const getStatusConfig = (status: string | undefined) => {
     const configs: Record<string, { label: string; className: string; icon: React.ElementType }> = {
       open: { label: '開設中', className: 'bg-kokoro-success/20 text-kokoro-success', icon: CheckCircle },
       full: { label: '満員', className: 'bg-kokoro-warning/20 text-kokoro-warning', icon: AlertTriangle },
       closed: { label: '閉鎖', className: 'bg-kokoro-muted/20 text-kokoro-muted', icon: WifiOff },
     };
-    return configs[status] || configs.closed;
+    return configs[status || 'closed'] || configs.closed;
   };
 
   return (
