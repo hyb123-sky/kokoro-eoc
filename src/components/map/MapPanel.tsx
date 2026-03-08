@@ -75,7 +75,7 @@ const MapMarkerIcon: React.FC<MapMarkerProps> = ({ type, priority, magnitude, on
 };
 
 // ============================================
-// Layer Toggle
+// Layer Toggle (Removed unused 'id' destructuring)
 // ============================================
 const LayerToggle: React.FC<{
   id: string;
@@ -84,7 +84,7 @@ const LayerToggle: React.FC<{
   enabled: boolean;
   count: number;
   onToggle: () => void;
-}> = ({ id, label, icon: Icon, enabled, count, onToggle }) => (
+}> = ({ label, icon: Icon, enabled, count, onToggle }) => (
   <button
     onClick={onToggle}
     className={clsx(

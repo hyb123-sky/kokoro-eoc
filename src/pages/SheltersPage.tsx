@@ -44,10 +44,9 @@ const SheltersPage: React.FC = () => {
     return configs[status || 'closed'] || configs.closed;
   };
 
-  // Helper to get address from location - safely access properties
+  // Helper to get address - Fixed TS2352 with double assertion
   const getAddress = (shelter: (typeof shelters)[number]): string => {
-    // Access potentially undefined properties safely
-    const shelterAny = shelter as Record<string, unknown>;
+    const shelterAny = (shelter as any) as Record<string, unknown>;
     return (
       (typeof shelterAny.street === 'string' ? shelterAny.street : '') ||
       (typeof shelterAny.address === 'string' ? shelterAny.address : '') ||
