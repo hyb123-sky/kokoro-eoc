@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KOKORO EOC | 災害対応指揮センター</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Mapbox GL CSS -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet" />
+    
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      html, body, #root {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      
+      body {
+        background-color: #0a0a0f;
+        color: #e0e0e0;
+        font-family: 'Outfit', system-ui, sans-serif;
+      }
+      
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        background: #12121a;
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        background: #1e1e2e;
+        border-radius: 3px;
+      }
+      
+      ::-webkit-scrollbar-thumb:hover {
+        background: #00f5d4;
+      }
+      
+      /* Loading Animation */
+      .initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0a0a0f;
+        z-index: 9999;
+      }
+      
+      .loader-content {
+        text-align: center;
+      }
+      
+      .loader-logo {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #00f5d4;
+        letter-spacing: 0.3em;
+        animation: glow 2s ease-in-out infinite;
+      }
+      
+      @keyframes glow {
+        0%, 100% { text-shadow: 0 0 10px #00f5d4, 0 0 20px #00f5d4; }
+        50% { text-shadow: 0 0 20px #00f5d4, 0 0 40px #00f5d4, 0 0 60px #00f5d4; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="initial-loader">
+        <div class="loader-content">
+          <div class="loader-logo">KOKORO</div>
+          <p style="color: #6c7086; margin-top: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
+            EMERGENCY OPERATIONS CENTER v1.0
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
