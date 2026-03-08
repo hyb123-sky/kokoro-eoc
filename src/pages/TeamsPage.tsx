@@ -7,7 +7,6 @@ import { Users, Plus, Search, UserCheck, MapPin } from 'lucide-react';
 import clsx from 'clsx';
 
 const TeamsPage: React.FC = () => {
-  // 模拟团队数据
   const teams = [
     { id: 1, name: '救急医療チーム A', leader: '山田太郎', members: 8, status: 'deployed', location: '東京都港区' },
     { id: 2, name: '物資輸送チーム B', leader: '佐藤花子', members: 5, status: 'available', location: '待機中' },

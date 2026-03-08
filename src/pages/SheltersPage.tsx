@@ -44,13 +44,16 @@ const SheltersPage: React.FC = () => {
     return configs[status || 'closed'] || configs.closed;
   };
 
-  // Helper to get address from location
-  const getAddress = (shelter: typeof shelters[0]) => {
-    // Try different possible address fields
-    return (shelter as Record<string, unknown>).street as string 
-      || (shelter as Record<string, unknown>).address as string 
-      || shelter.city 
-      || '住所未登録';
+  // Helper to get address from location - safely access properties
+  const getAddress = (shelter: (typeof shelters)[number]): string => {
+    // Access potentially undefined properties safely
+    const shelterAny = shelter as Record<string, unknown>;
+    return (
+      (typeof shelterAny.street === 'string' ? shelterAny.street : '') ||
+      (typeof shelterAny.address === 'string' ? shelterAny.address : '') ||
+      (typeof shelterAny.city === 'string' ? shelterAny.city : '') ||
+      '住所未登録'
+    );
   };
 
   return (

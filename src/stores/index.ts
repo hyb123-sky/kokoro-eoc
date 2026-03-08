@@ -24,10 +24,12 @@ interface AppState {
   sidebarOpen: boolean;
   theme: 'dark' | 'light';
   language: 'ja' | 'en';
+  selectedIncidentId: string | null;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setLanguage: (language: 'ja' | 'en') => void;
+  selectIncident: (id: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -37,10 +39,12 @@ export const useAppStore = create<AppState>()(
         sidebarOpen: true,
         theme: 'dark',
         language: 'ja',
+        selectedIncidentId: null,
         toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
         setSidebarOpen: (open) => set({ sidebarOpen: open }),
         setTheme: (theme) => set({ theme }),
         setLanguage: (language) => set({ language }),
+        selectIncident: (id) => set({ selectedIncidentId: id }),
       }),
       { name: 'kokoro-app-store' }
     )
@@ -53,10 +57,18 @@ export const useAppStore = create<AppState>()(
 interface MapState {
   center: { lat: number; lng: number };
   zoom: number;
+  viewport: { latitude: number; longitude: number; zoom: number };
   selectedMarkerId: string | null;
   visibleLayers: string[];
+  layers: {
+    incidents: boolean;
+    shelters: boolean;
+    resources: boolean;
+    earthquakes: boolean;
+  };
   setCenter: (center: { lat: number; lng: number }) => void;
   setZoom: (zoom: number) => void;
+  setViewport: (viewport: { latitude: number; longitude: number; zoom: number }) => void;
   flyTo: (lat: number, lng: number, zoom?: number) => void;
   selectMarker: (id: string | null) => void;
   toggleLayer: (layerId: string) => void;
@@ -66,17 +78,33 @@ export const useMapStore = create<MapState>()(
   devtools((set) => ({
     center: { lat: 35.6762, lng: 139.6503 },
     zoom: 10,
+    viewport: { latitude: 35.6762, longitude: 139.6503, zoom: 10 },
     selectedMarkerId: null,
     visibleLayers: ['incidents', 'shelters', 'resources'],
+    layers: {
+      incidents: true,
+      shelters: true,
+      resources: true,
+      earthquakes: true,
+    },
     setCenter: (center) => set({ center }),
     setZoom: (zoom) => set({ zoom }),
-    flyTo: (lat, lng, zoom = 14) => set({ center: { lat, lng }, zoom }),
+    setViewport: (viewport) => set({ viewport }),
+    flyTo: (lat, lng, zoom = 14) => set({ 
+      center: { lat, lng }, 
+      zoom,
+      viewport: { latitude: lat, longitude: lng, zoom }
+    }),
     selectMarker: (id) => set({ selectedMarkerId: id }),
     toggleLayer: (layerId) =>
       set((state) => ({
         visibleLayers: state.visibleLayers.includes(layerId)
           ? state.visibleLayers.filter((l) => l !== layerId)
           : [...state.visibleLayers, layerId],
+        layers: {
+          ...state.layers,
+          [layerId]: !state.layers[layerId as keyof typeof state.layers],
+        },
       })),
   }))
 );
@@ -148,10 +176,12 @@ interface AICopilotState {
   isOpen: boolean;
   messages: AICopilotMessage[];
   isLoading: boolean;
+  isProcessing: boolean;
   toggleCopilot: () => void;
   setOpen: (open: boolean) => void;
   addMessage: (message: Omit<AICopilotMessage, 'id' | 'timestamp'>) => void;
   setLoading: (loading: boolean) => void;
+  setProcessing: (processing: boolean) => void;
   clearMessages: () => void;
 }
 
@@ -160,6 +190,7 @@ export const useAICopilotStore = create<AICopilotState>()(
     isOpen: false,
     messages: [],
     isLoading: false,
+    isProcessing: false,
     toggleCopilot: () => set((state) => ({ isOpen: !state.isOpen })),
     setOpen: (open) => set({ isOpen: open }),
     addMessage: (message) =>
@@ -174,6 +205,7 @@ export const useAICopilotStore = create<AICopilotState>()(
         ],
       })),
     setLoading: (loading) => set({ isLoading: loading }),
+    setProcessing: (processing) => set({ isProcessing: processing }),
     clearMessages: () => set({ messages: [] }),
   }))
 );

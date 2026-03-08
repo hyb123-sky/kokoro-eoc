@@ -1,5 +1,5 @@
 // ============================================
-// KOKORO EOC - Sidebar Component (Original)
+// KOKORO EOC - Sidebar Component
 // ============================================
 
 import React from 'react';
