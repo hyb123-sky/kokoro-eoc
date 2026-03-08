@@ -7,7 +7,7 @@ import MapPanel from '../map/MapPanel';
 import IncidentPanel from '../incidents/IncidentPanel';
 import ResourcePanel from '../resources/ResourcePanel';
 import StatsOverview from './StatsOverview';
-import EarthquakePanel from '../weather/EarthquakePanel';
+import EarthquakePanel from '../earthquake/EarthquakePanel';
 
 // ============================================
 // Main Content Layout

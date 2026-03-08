@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   TrendingUp,
   Lightbulb,
-  ChevronRight,
   Loader2,
   Maximize2,
   Minimize2,
@@ -86,7 +85,7 @@ const SuggestionCard: React.FC<{
 // Message Component
 // ============================================
 const Message: React.FC<{
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 }> = ({ role, content }) => (
   <div
@@ -124,7 +123,7 @@ const Message: React.FC<{
 // Main AI Copilot Component
 // ============================================
 const AICopilot: React.FC = () => {
-  const { isOpen, toggleCopilot, messages, addMessage, suggestions, removeSuggestion, isProcessing, setProcessing } = useAICopilotStore();
+  const { isOpen, toggleCopilot, messages, addMessage, isProcessing, setProcessing } = useAICopilotStore();
   const [input, setInput] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
