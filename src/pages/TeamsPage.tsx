@@ -3,7 +3,7 @@
 // ============================================
 
 import React from 'react';
-import { Users, Plus, Search, Filter, UserCheck, UserX, Phone, Mail, MapPin } from 'lucide-react';
+import { Users, Plus, Search, UserCheck, MapPin } from 'lucide-react';
 import clsx from 'clsx';
 
 const TeamsPage: React.FC = () => {

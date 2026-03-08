@@ -1,197 +1,92 @@
 // ============================================
-// KOKORO EOC - Global State Management (Zustand)
+// KOKORO EOC - Zustand Stores
 // ============================================
-// 这是解决"意大利面条代码"问题的核心
-// 所有面板共享数据，实现跨组件通信
 
 import { create } from 'zustand';
-import { devtools, subscribeWithSelector } from 'zustand/middleware';
-import type {
-  MapViewport,
-  ServiceNowIncident,
-  ServiceNowResource,
-  Notification,
-  DashboardStats,
-  FilterOptions,
-  AICopilotMessage,
-  AISuggestion,
-} from '../types';
+import { devtools, persist } from 'zustand/middleware';
 
 // ============================================
-// 主应用状态 Store
+// Types
 // ============================================
-interface AppStore {
-  // UI 状态
-  isLoading: boolean;
+interface Notification {
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  message: string;
+  timestamp: Date;
+  read: boolean;
+}
+
+// ============================================
+// App Store
+// ============================================
+interface AppState {
   sidebarOpen: boolean;
-  activePanels: string[];
   theme: 'dark' | 'light';
-  
-  // 选中项
-  selectedIncidentId: string | null;
-  selectedResourceId: string | null;
-  selectedMarkerId: string | null;
-  
-  // 筛选器
-  incidentFilters: FilterOptions;
-  resourceFilters: FilterOptions;
-  
-  // Actions
-  setLoading: (loading: boolean) => void;
+  language: 'ja' | 'en';
   toggleSidebar: () => void;
-  togglePanel: (panelId: string) => void;
+  setSidebarOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
-  selectIncident: (id: string | null) => void;
-  selectResource: (id: string | null) => void;
-  selectMarker: (id: string | null) => void;
-  setIncidentFilters: (filters: FilterOptions) => void;
-  setResourceFilters: (filters: FilterOptions) => void;
-  resetFilters: () => void;
+  setLanguage: (language: 'ja' | 'en') => void;
 }
 
-export const useAppStore = create<AppStore>()(
+export const useAppStore = create<AppState>()(
   devtools(
-    subscribeWithSelector((set) => ({
-      // Initial State
-      isLoading: false,
-      sidebarOpen: true,
-      activePanels: ['incidents', 'weather', 'resources'],
-      theme: 'dark',
-      selectedIncidentId: null,
-      selectedResourceId: null,
-      selectedMarkerId: null,
-      incidentFilters: {},
-      resourceFilters: {},
-      
-      // Actions
-      setLoading: (loading) => set({ isLoading: loading }),
-      
-      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-      
-      togglePanel: (panelId) => set((state) => ({
-        activePanels: state.activePanels.includes(panelId)
-          ? state.activePanels.filter((id) => id !== panelId)
-          : [...state.activePanels, panelId],
-      })),
-      
-      setTheme: (theme) => set({ theme }),
-      
-      selectIncident: (id) => set({ 
-        selectedIncidentId: id,
-        // 同步选中地图标记
-        selectedMarkerId: id ? `incident-${id}` : null,
+    persist(
+      (set) => ({
+        sidebarOpen: true,
+        theme: 'dark',
+        language: 'ja',
+        toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+        setSidebarOpen: (open) => set({ sidebarOpen: open }),
+        setTheme: (theme) => set({ theme }),
+        setLanguage: (language) => set({ language }),
       }),
-      
-      selectResource: (id) => set({ 
-        selectedResourceId: id,
-        selectedMarkerId: id ? `resource-${id}` : null,
-      }),
-      
-      selectMarker: (id) => set((state) => {
-        // 解析 marker ID，自动选中对应的 incident/resource
-        if (id?.startsWith('incident-')) {
-          return { 
-            selectedMarkerId: id,
-            selectedIncidentId: id.replace('incident-', ''),
-          };
-        }
-        if (id?.startsWith('resource-')) {
-          return {
-            selectedMarkerId: id,
-            selectedResourceId: id.replace('resource-', ''),
-          };
-        }
-        return { selectedMarkerId: id };
-      }),
-      
-      setIncidentFilters: (filters) => set({ incidentFilters: filters }),
-      setResourceFilters: (filters) => set({ resourceFilters: filters }),
-      resetFilters: () => set({ incidentFilters: {}, resourceFilters: {} }),
-    })),
-    { name: 'kokoro-app-store' }
+      { name: 'kokoro-app-store' }
+    )
   )
 );
 
 // ============================================
-// 地图状态 Store
+// Map Store
 // ============================================
-interface MapStore {
-  viewport: MapViewport;
-  mapStyle: string;
-  layers: {
-    incidents: boolean;
-    resources: boolean;
-    shelters: boolean;
-    heatmap: boolean;
-    traffic: boolean;
-    satellite: boolean;
-  };
-  
-  // Actions
-  setViewport: (viewport: Partial<MapViewport>) => void;
+interface MapState {
+  center: { lat: number; lng: number };
+  zoom: number;
+  selectedMarkerId: string | null;
+  visibleLayers: string[];
+  setCenter: (center: { lat: number; lng: number }) => void;
+  setZoom: (zoom: number) => void;
   flyTo: (lat: number, lng: number, zoom?: number) => void;
-  setMapStyle: (style: string) => void;
-  toggleLayer: (layerName: keyof MapStore['layers']) => void;
-  resetView: () => void;
+  selectMarker: (id: string | null) => void;
+  toggleLayer: (layerId: string) => void;
 }
 
-const DEFAULT_VIEWPORT: MapViewport = {
-  latitude: 35.6762,  // 東京
-  longitude: 139.6503,
-  zoom: 10,
-  bearing: 0,
-  pitch: 45,
-};
-
-export const useMapStore = create<MapStore>()(
-  devtools(
-    (set) => ({
-      viewport: DEFAULT_VIEWPORT,
-      mapStyle: 'mapbox://styles/mapbox/dark-v11',
-      layers: {
-        incidents: true,
-        resources: true,
-        shelters: true,
-        heatmap: false,
-        traffic: false,
-        satellite: false,
-      },
-      
-      setViewport: (viewport) => set((state) => ({
-        viewport: { ...state.viewport, ...viewport },
+export const useMapStore = create<MapState>()(
+  devtools((set) => ({
+    center: { lat: 35.6762, lng: 139.6503 },
+    zoom: 10,
+    selectedMarkerId: null,
+    visibleLayers: ['incidents', 'shelters', 'resources'],
+    setCenter: (center) => set({ center }),
+    setZoom: (zoom) => set({ zoom }),
+    flyTo: (lat, lng, zoom = 14) => set({ center: { lat, lng }, zoom }),
+    selectMarker: (id) => set({ selectedMarkerId: id }),
+    toggleLayer: (layerId) =>
+      set((state) => ({
+        visibleLayers: state.visibleLayers.includes(layerId)
+          ? state.visibleLayers.filter((l) => l !== layerId)
+          : [...state.visibleLayers, layerId],
       })),
-      
-      flyTo: (latitude, longitude, zoom = 14) => set({
-        viewport: {
-          ...DEFAULT_VIEWPORT,
-          latitude,
-          longitude,
-          zoom,
-        },
-      }),
-      
-      setMapStyle: (mapStyle) => set({ mapStyle }),
-      
-      toggleLayer: (layerName) => set((state) => ({
-        layers: {
-          ...state.layers,
-          [layerName]: !state.layers[layerName],
-        },
-      })),
-      
-      resetView: () => set({ viewport: DEFAULT_VIEWPORT }),
-    }),
-    { name: 'kokoro-map-store' }
-  )
+  }))
 );
 
 // ============================================
-// 通知状态 Store
+// Notification Store
 // ============================================
-interface NotificationStore {
+interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
-  
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -199,156 +94,113 @@ interface NotificationStore {
   clearAll: () => void;
 }
 
-export const useNotificationStore = create<NotificationStore>()(
-  devtools(
-    (set, get) => ({
-      notifications: [],
-      unreadCount: 0,
-      
-      addNotification: (notification) => {
+export const useNotificationStore = create<NotificationState>()(
+  devtools((set) => ({
+    notifications: [],
+    unreadCount: 0,
+    addNotification: (notification) =>
+      set((state) => {
         const newNotification: Notification = {
           ...notification,
-          id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: Date.now(),
+          id: `notif-${Date.now()}`,
+          timestamp: new Date(),
           read: false,
         };
-        
-        set((state) => ({
-          notifications: [newNotification, ...state.notifications].slice(0, 100), // 最多保留100条
+        return {
+          notifications: [newNotification, ...state.notifications].slice(0, 100),
           unreadCount: state.unreadCount + 1,
-        }));
-      },
-      
-      markAsRead: (id) => set((state) => ({
+        };
+      }),
+    markAsRead: (id) =>
+      set((state) => ({
         notifications: state.notifications.map((n) =>
           n.id === id ? { ...n, read: true } : n
         ),
         unreadCount: Math.max(0, state.unreadCount - 1),
       })),
-      
-      markAllAsRead: () => set((state) => ({
+    markAllAsRead: () =>
+      set((state) => ({
         notifications: state.notifications.map((n) => ({ ...n, read: true })),
         unreadCount: 0,
       })),
-      
-      removeNotification: (id) => set((state) => ({
+    removeNotification: (id) =>
+      set((state) => ({
         notifications: state.notifications.filter((n) => n.id !== id),
         unreadCount: state.notifications.find((n) => n.id === id && !n.read)
           ? state.unreadCount - 1
           : state.unreadCount,
       })),
-      
-      clearAll: () => set({ notifications: [], unreadCount: 0 }),
-    }),
-    { name: 'kokoro-notification-store' }
-  )
+    clearAll: () => set({ notifications: [], unreadCount: 0 }),
+  }))
 );
 
 // ============================================
-// AI Copilot 状态 Store
+// AI Copilot Store
 // ============================================
-interface AICopilotStore {
+interface AICopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface AICopilotState {
   isOpen: boolean;
   messages: AICopilotMessage[];
-  suggestions: AISuggestion[];
-  isProcessing: boolean;
-  
+  isLoading: boolean;
   toggleCopilot: () => void;
+  setOpen: (open: boolean) => void;
   addMessage: (message: Omit<AICopilotMessage, 'id' | 'timestamp'>) => void;
-  addSuggestion: (suggestion: Omit<AISuggestion, 'id' | 'timestamp'>) => void;
-  removeSuggestion: (id: string) => void;
+  setLoading: (loading: boolean) => void;
   clearMessages: () => void;
-  setProcessing: (processing: boolean) => void;
 }
 
-export const useAICopilotStore = create<AICopilotStore>()(
-  devtools(
-    (set) => ({
-      isOpen: false,
-      messages: [],
-      suggestions: [],
-      isProcessing: false,
-      
-      toggleCopilot: () => set((state) => ({ isOpen: !state.isOpen })),
-      
-      addMessage: (message) => {
-        const newMessage: AICopilotMessage = {
-          ...message,
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: Date.now(),
-        };
-        set((state) => ({
-          messages: [...state.messages, newMessage],
-        }));
-      },
-      
-      addSuggestion: (suggestion) => {
-        const newSuggestion: AISuggestion = {
-          ...suggestion,
-          id: `sug-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: Date.now(),
-        };
-        set((state) => ({
-          suggestions: [newSuggestion, ...state.suggestions].slice(0, 10),
-        }));
-      },
-      
-      removeSuggestion: (id) => set((state) => ({
-        suggestions: state.suggestions.filter((s) => s.id !== id),
+export const useAICopilotStore = create<AICopilotState>()(
+  devtools((set) => ({
+    isOpen: false,
+    messages: [],
+    isLoading: false,
+    toggleCopilot: () => set((state) => ({ isOpen: !state.isOpen })),
+    setOpen: (open) => set({ isOpen: open }),
+    addMessage: (message) =>
+      set((state) => ({
+        messages: [
+          ...state.messages,
+          {
+            ...message,
+            id: `msg-${Date.now()}`,
+            timestamp: new Date(),
+          },
+        ],
       })),
-      
-      clearMessages: () => set({ messages: [] }),
-      
-      setProcessing: (isProcessing) => set({ isProcessing }),
-    }),
-    { name: 'kokoro-ai-copilot-store' }
-  )
+    setLoading: (loading) => set({ isLoading: loading }),
+    clearMessages: () => set({ messages: [] }),
+  }))
 );
 
 // ============================================
-// Dashboard 统计数据 Store
+// Stats Store
 // ============================================
-interface StatsStore {
-  stats: DashboardStats;
-  lastUpdated: number | null;
-  
-  updateStats: (stats: Partial<DashboardStats>) => void;
-  setStats: (stats: DashboardStats) => void;
+interface StatsState {
+  activeIncidents: number;
+  criticalIncidents: number;
+  resolvedToday: number;
+  averageResponseTime: number;
+  deployedVolunteers: number;
+  totalShelterCapacity: number;
+  currentOccupancy: number;
+  updateStats: (stats: Partial<StatsState>) => void;
 }
 
-const DEFAULT_STATS: DashboardStats = {
-  total_incidents: 0,
-  active_incidents: 0,
-  critical_incidents: 0,
-  resolved_today: 0,
-  total_resources: 0,
-  deployed_resources: 0,
-  available_resources: 0,
-  total_personnel: 0,
-  active_personnel: 0,
-  affected_population: 0,
-  evacuated_population: 0,
-  sheltered_population: 0,
-  response_time_avg: 0,
-  resolution_time_avg: 0,
-};
-
-export const useStatsStore = create<StatsStore>()(
-  devtools(
-    (set) => ({
-      stats: DEFAULT_STATS,
-      lastUpdated: null,
-      
-      updateStats: (partialStats) => set((state) => ({
-        stats: { ...state.stats, ...partialStats },
-        lastUpdated: Date.now(),
-      })),
-      
-      setStats: (stats) => set({
-        stats,
-        lastUpdated: Date.now(),
-      }),
-    }),
-    { name: 'kokoro-stats-store' }
-  )
+export const useStatsStore = create<StatsState>()(
+  devtools((set) => ({
+    activeIncidents: 0,
+    criticalIncidents: 0,
+    resolvedToday: 0,
+    averageResponseTime: 0,
+    deployedVolunteers: 0,
+    totalShelterCapacity: 0,
+    currentOccupancy: 0,
+    updateStats: (stats) => set((state) => ({ ...state, ...stats })),
+  }))
 );

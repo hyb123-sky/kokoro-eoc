@@ -44,6 +44,15 @@ const SheltersPage: React.FC = () => {
     return configs[status || 'closed'] || configs.closed;
   };
 
+  // Helper to get address from location
+  const getAddress = (shelter: typeof shelters[0]) => {
+    // Try different possible address fields
+    return (shelter as Record<string, unknown>).street as string 
+      || (shelter as Record<string, unknown>).address as string 
+      || shelter.city 
+      || '住所未登録';
+  };
+
   return (
     <div className="h-full flex flex-col bg-kokoro-dark">
       {/* Header */}
@@ -159,7 +168,7 @@ const SheltersPage: React.FC = () => {
                   <div className="space-y-2 text-sm text-kokoro-muted">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4" />
-                      <span className="line-clamp-1">{shelter.street || '住所未登録'}</span>
+                      <span className="line-clamp-1">{getAddress(shelter)}</span>
                     </div>
                     {shelter.x_1821654_kokoro_0_eoc_site_type && (
                       <div className="flex items-center gap-2">

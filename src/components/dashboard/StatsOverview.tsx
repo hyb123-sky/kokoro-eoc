@@ -1,147 +1,112 @@
 // ============================================
-// KOKORO EOC - Stats Overview Bar
+// KOKORO EOC - Stats Overview Component
 // ============================================
 
 import React from 'react';
 import {
   AlertTriangle,
-  CheckCircle,
-  Clock,
-  Truck,
   Users,
   Building2,
+  Package,
   TrendingUp,
   TrendingDown,
-  Minus,
+  Activity,
 } from 'lucide-react';
-import { useGlobalStats } from '../../hooks/useQueries';
+import { useDashboardData } from '../../hooks/useQueries';
 import clsx from 'clsx';
 
 // ============================================
-// Types
+// Stat Card Component
 // ============================================
-interface StatItemProps {
+interface StatCardProps {
+  icon: React.ElementType;
   label: string;
   value: number | string;
-  icon: React.ElementType;
   trend?: number;
-  color?: string;
-  bgColor?: string;
+  color: string;
 }
 
-// ============================================
-// Stat Item Component
-// ============================================
-const StatItem: React.FC<StatItemProps> = ({
-  label,
-  value,
-  icon: Icon,
-  trend,
-  color = 'text-kokoro-accent',
-  bgColor = 'bg-kokoro-accent/10',
-}) => {
-  const getTrendIcon = () => {
-    if (trend === undefined) return null;
-    if (trend > 0) return <TrendingUp className="w-3 h-3 text-status-critical" />;
-    if (trend < 0) return <TrendingDown className="w-3 h-3 text-kokoro-success" />;
-    return <Minus className="w-3 h-3 text-kokoro-muted" />;
-  };
-
+const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, trend, color }) => {
   return (
-    <div className="flex items-center gap-3 px-4 py-2">
-      <div className={clsx('w-10 h-10 rounded-lg flex items-center justify-center', bgColor)}>
-        <Icon className={clsx('w-5 h-5', color)} />
+    <div className="flex items-center gap-3 px-4 py-3 bg-kokoro-panel rounded-lg border border-kokoro-border">
+      <div className={clsx('w-10 h-10 rounded-lg flex items-center justify-center', `bg-${color}/10`)}>
+        <Icon className={clsx('w-5 h-5', `text-${color}`)} />
       </div>
-      <div>
+      <div className="flex-1">
+        <p className="text-xs text-kokoro-muted">{label}</p>
         <div className="flex items-center gap-2">
-          <span className={clsx('font-display font-bold text-xl', color)}>
-            {typeof value === 'number' ? value.toLocaleString() : value}
-          </span>
-          {getTrendIcon()}
+          <span className="text-xl font-display font-bold text-white">{value}</span>
+          {trend !== undefined && (
+            <span className={clsx(
+              'flex items-center text-xs',
+              trend >= 0 ? 'text-kokoro-success' : 'text-status-critical'
+            )}>
+              {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {Math.abs(trend)}%
+            </span>
+          )}
         </div>
-        <span className="text-xs text-kokoro-muted">{label}</span>
       </div>
     </div>
   );
 };
 
 // ============================================
-// Main Stats Overview Component
+// Stats Overview Component
 // ============================================
 const StatsOverview: React.FC = () => {
-  const { data: stats, isLoading, isError } = useGlobalStats();
+  const { silentWishes, locations, inventories, volunteers } = useDashboardData();
 
-  // 实时数据映射，提供加载期与容错默认值
-  const currentStats = {
-    active_incidents: stats?.active_incidents ?? 0,
-    critical_incidents: stats?.critical_incidents ?? 0,
-    resolved_today: stats?.resolved_today ?? 0,
-    deployed_resources: stats?.deployed_resources ?? 0,
-    active_personnel: stats?.active_personnel ?? 0,
-    sheltered_population: stats?.sheltered_population ?? 0,
-    response_time_avg: stats?.response_time_avg ?? 0,
-  };
+  // Calculate stats from actual data
+  const activeIncidents = silentWishes?.filter(w => !['完了', 'closed'].includes(w.state || '')).length || 0;
+  const criticalIncidents = silentWishes?.filter(w => {
+    const priority = parseInt(w.priority || '99');
+    return priority <= 10;
+  }).length || 0;
+  
+  const totalShelters = locations?.length || 0;
+  const totalResources = inventories?.length || 0;
+  const deployedVolunteers = volunteers?.filter(v => v.status === 'deployed').length || 0;
+
+  const stats = [
+    {
+      icon: AlertTriangle,
+      label: 'アクティブインシデント',
+      value: activeIncidents,
+      color: 'status-critical',
+    },
+    {
+      icon: Activity,
+      label: 'クリティカル',
+      value: criticalIncidents,
+      color: 'kokoro-warning',
+    },
+    {
+      icon: Building2,
+      label: '避難所',
+      value: totalShelters,
+      color: 'kokoro-info',
+    },
+    {
+      icon: Package,
+      label: 'リソース品目',
+      value: totalResources,
+      color: 'kokoro-success',
+    },
+    {
+      icon: Users,
+      label: '派遣中',
+      value: deployedVolunteers,
+      color: 'kokoro-accent',
+    },
+  ];
 
   return (
-    <div className="h-16 bg-kokoro-panel border-b border-kokoro-border flex items-center justify-between px-2 shrink-0">
-      <div className="flex items-center divide-x divide-kokoro-border">
-        <StatItem
-          label="アクティブ"
-          value={currentStats.active_incidents}
-          icon={AlertTriangle}
-          trend={2}
-          color="text-status-critical"
-          bgColor="bg-status-critical/10"
-        />
-        <StatItem
-          label="クリティカル"
-          value={currentStats.critical_incidents}
-          icon={AlertTriangle}
-          color="text-status-high"
-          bgColor="bg-status-high/10"
-        />
-        <StatItem
-          label="本日解決"
-          value={currentStats.resolved_today}
-          icon={CheckCircle}
-          trend={-3}
-          color="text-kokoro-success"
-          bgColor="bg-kokoro-success/10"
-        />
-        <StatItem
-          label="派遣中"
-          value={currentStats.deployed_resources}
-          icon={Truck}
-          color="text-kokoro-info"
-          bgColor="bg-kokoro-info/10"
-        />
-        <StatItem
-          label="活動中人員"
-          value={currentStats.active_personnel}
-          icon={Users}
-          color="text-kokoro-accent"
-          bgColor="bg-kokoro-accent/10"
-        />
-        <StatItem
-          label="避難者数"
-          value={currentStats.sheltered_population}
-          icon={Building2}
-          color="text-kokoro-warning"
-          bgColor="bg-kokoro-warning/10"
-        />
-        <StatItem
-          label="平均対応時間"
-          value={`${currentStats.response_time_avg}分`}
-          icon={Clock}
-          color="text-kokoro-accent"
-          bgColor="bg-kokoro-accent/10"
-        />
-      </div>
-
-      {/* Last Updated */}
-      <div className="text-xs text-kokoro-muted font-mono pr-4 flex items-center">
-        <span className={clsx("inline-block w-2 h-2 rounded-full mr-2", isLoading ? "bg-kokoro-warning animate-pulse" : isError ? "bg-status-critical" : "bg-kokoro-success animate-pulse")} />
-        {isLoading ? 'データ取得中...' : isError ? '接続エラー' : 'リアルタイム更新中'}
+    <div className="shrink-0 px-4 py-3 border-b border-kokoro-border bg-kokoro-darker">
+      <div className="flex items-center gap-4 overflow-x-auto">
+        {stats.map((stat, index) => (
+          <StatCard key={index} {...stat} />
+        ))}
       </div>
     </div>
   );
