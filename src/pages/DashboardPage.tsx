@@ -1,5 +1,5 @@
 // ============================================
-// KOKORO EOC - Dashboard Page
+// KOKORO EOC - Dashboard Page (Fixed)
 // ============================================
 
 import React from 'react';
@@ -7,6 +7,7 @@ import MapPanel from '../components/map/MapPanel';
 import IncidentPanel from '../components/incidents/IncidentPanel';
 import ResourcePanel from '../components/resources/ResourcePanel';
 import EarthquakePanel from '../components/earthquake/EarthquakePanel';
+import WeatherPanel from '../components/weather/WeatherPanel';
 import StatsOverview from '../components/dashboard/StatsOverview';
 
 // ============================================
@@ -31,8 +32,9 @@ const DashboardPage: React.FC = () => {
           <MapPanel />
         </div>
 
-        {/* Right Column - Earthquake Activity */}
+        {/* Right Column - Weather & Earthquake Activity */}
         <div className="col-span-3 flex flex-col gap-4 overflow-hidden">
+          <WeatherPanel />
           <EarthquakePanel />
         </div>
       </div>

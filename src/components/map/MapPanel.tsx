@@ -1,9 +1,9 @@
 // ============================================
-// KOKORO EOC - Map Panel Component
+// KOKORO EOC - Map Panel Component (Fixed)
 // ============================================
 
-import React, { useRef, useCallback } from 'react';
-import Map, { Marker, NavigationControl, ScaleControl } from 'react-map-gl';
+import React, { useRef, useCallback, useState } from 'react';
+import Map, { Marker, Popup, NavigationControl, ScaleControl } from 'react-map-gl';
 import {
   Layers,
   AlertTriangle,
@@ -11,29 +11,67 @@ import {
   Activity,
   Maximize2,
   RefreshCw,
+  MapPin,
+  Clock,
+  Users,
 } from 'lucide-react';
 import { useDashboardData, useEarthquakes } from '../../hooks/useQueries';
 import { useMapStore, useAppStore } from '../../stores';
+import { formatDistanceToNow } from 'date-fns';
+import { ja } from 'date-fns/locale';
 import clsx from 'clsx';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 // ============================================
-// Marker Component
+// Types
+// ============================================
+interface PopupInfo {
+  type: 'incident' | 'shelter' | 'earthquake';
+  latitude: number;
+  longitude: number;
+  data: any;
+}
+
+// ============================================
+// Priority to P-Level Mapper
+// ============================================
+const getPriorityLevel = (priority: string | number | undefined): string => {
+  if (!priority) return '5';
+  
+  const p = typeof priority === 'string' ? parseInt(priority) : priority;
+  
+  // 如果是 1-5 的值，直接使用
+  if (p >= 1 && p <= 5) return String(p);
+  
+  // 如果是 10, 20, 30, 40, 50 的值，转换
+  if (p <= 10) return '1';
+  if (p <= 20) return '2';
+  if (p <= 30) return '3';
+  if (p <= 40) return '4';
+  return '5';
+};
+
+// ============================================
+// Marker Component with Color
 // ============================================
 interface MapMarkerProps {
   type: 'incident' | 'shelter' | 'earthquake';
-  priority?: string;
+  priority?: string | number;
   magnitude?: number;
+  isSelected?: boolean;
   onClick?: () => void;
 }
 
-const MapMarkerIcon: React.FC<MapMarkerProps> = ({ type, priority, magnitude, onClick }) => {
+const MapMarkerIcon: React.FC<MapMarkerProps> = ({ type, priority, magnitude, isSelected, onClick }) => {
   const getIncidentColor = () => {
-    const p = parseInt(priority || '20');
-    if (p <= 10) return 'bg-status-critical animate-pulse';
-    if (p <= 20) return 'bg-status-high';
-    if (p <= 30) return 'bg-status-medium';
-    return 'bg-status-low';
+    const level = getPriorityLevel(priority);
+    switch (level) {
+      case '1': return 'bg-status-critical animate-pulse shadow-[0_0_15px_rgba(255,0,110,0.7)]';
+      case '2': return 'bg-status-high shadow-[0_0_10px_rgba(255,107,53,0.5)]';
+      case '3': return 'bg-status-medium';
+      case '4': return 'bg-status-low';
+      default: return 'bg-kokoro-muted';
+    }
   };
 
   const getEarthquakeColor = () => {
@@ -65,8 +103,9 @@ const MapMarkerIcon: React.FC<MapMarkerProps> = ({ type, priority, magnitude, on
     <button
       onClick={onClick}
       className={clsx(
-        'w-8 h-8 rounded-full flex items-center justify-center shadow-lg cursor-pointer',
-        color
+        'w-8 h-8 rounded-full flex items-center justify-center shadow-lg cursor-pointer transition-transform hover:scale-110',
+        color,
+        isSelected && 'ring-2 ring-white ring-offset-2 ring-offset-kokoro-dark scale-125'
       )}
     >
       <Icon className="w-4 h-4 text-white" />
@@ -75,7 +114,7 @@ const MapMarkerIcon: React.FC<MapMarkerProps> = ({ type, priority, magnitude, on
 };
 
 // ============================================
-// Layer Toggle (Removed unused 'id' destructuring)
+// Layer Toggle
 // ============================================
 const LayerToggle: React.FC<{
   id: string;
@@ -99,11 +138,158 @@ const LayerToggle: React.FC<{
 );
 
 // ============================================
+// Incident Popup Content
+// ============================================
+const IncidentPopupContent: React.FC<{ data: any; onNavigate: () => void }> = ({ data, onNavigate }) => {
+  const level = getPriorityLevel(data.priority);
+  const priorityLabels: Record<string, { label: string; color: string }> = {
+    '1': { label: 'P1 - 緊急', color: 'bg-status-critical' },
+    '2': { label: 'P2 - 高', color: 'bg-status-high' },
+    '3': { label: 'P3 - 中', color: 'bg-status-medium' },
+    '4': { label: 'P4 - 低', color: 'bg-status-low' },
+    '5': { label: 'P5 - 計画', color: 'bg-kokoro-muted' },
+  };
+
+  const { label, color } = priorityLabels[level] || priorityLabels['5'];
+  const title = data.wish_content?.substring(0, 50) || '緊急SOS要請';
+
+  return (
+    <div className="min-w-[220px]">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={clsx('px-2 py-0.5 text-[10px] font-bold rounded text-white', color)}>
+          {label}
+        </span>
+        <span className="px-2 py-0.5 text-[10px] font-bold bg-status-critical text-white rounded animate-pulse">
+          🆘 SOS
+        </span>
+      </div>
+      <h4 className="font-medium text-gray-900 text-sm mb-2 line-clamp-2">{title}</h4>
+      <div className="space-y-1 text-xs text-gray-600 mb-3">
+        <div className="flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          <span>
+            {data.sys_created_on
+              ? formatDistanceToNow(new Date(data.sys_created_on), { addSuffix: true, locale: ja })
+              : '時間不明'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <MapPin className="w-3 h-3" />
+          <span>
+            {data.latitude && data.longitude
+              ? `${parseFloat(data.latitude).toFixed(4)}, ${parseFloat(data.longitude).toFixed(4)}`
+              : '位置不明'}
+          </span>
+        </div>
+      </div>
+      <button
+        onClick={onNavigate}
+        className="w-full px-3 py-1.5 text-xs bg-kokoro-accent text-kokoro-dark rounded hover:bg-kokoro-accent/80 font-medium"
+      >
+        詳細を表示
+      </button>
+    </div>
+  );
+};
+
+// ============================================
+// Shelter Popup Content
+// ============================================
+const ShelterPopupContent: React.FC<{ data: any }> = ({ data }) => {
+  const capacity = parseInt(data.x_1821654_kokoro_0_capacity || '0');
+  const occupancy = parseInt(data.x_1821654_kokoro_0_current_occupancy || '0');
+  const occupancyPercent = capacity > 0 ? Math.round((occupancy / capacity) * 100) : 0;
+
+  const statusLabels: Record<string, { label: string; color: string }> = {
+    'open': { label: '開設中', color: 'text-kokoro-success' },
+    'full': { label: '満員', color: 'text-kokoro-warning' },
+    'closed': { label: '閉鎖', color: 'text-kokoro-muted' },
+  };
+
+  const status = statusLabels[data.x_1821654_kokoro_0_site_status || 'closed'] || statusLabels['closed'];
+
+  return (
+    <div className="min-w-[200px]">
+      <div className="flex items-center gap-2 mb-2">
+        <Building2 className="w-4 h-4 text-kokoro-info" />
+        <span className={clsx('text-xs font-medium', status.color)}>{status.label}</span>
+      </div>
+      <h4 className="font-medium text-gray-900 text-sm mb-2">{data.name || '避難所'}</h4>
+      <div className="mb-2">
+        <div className="flex justify-between text-xs text-gray-600 mb-1">
+          <span>収容状況</span>
+          <span>{occupancy} / {capacity}</span>
+        </div>
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className={clsx(
+              'h-full rounded-full',
+              occupancyPercent >= 90 ? 'bg-status-critical' :
+              occupancyPercent >= 70 ? 'bg-kokoro-warning' : 'bg-kokoro-success'
+            )}
+            style={{ width: `${occupancyPercent}%` }}
+          />
+        </div>
+      </div>
+      {data.x_1821654_kokoro_0_eoc_site_type && (
+        <p className="text-xs text-gray-500">タイプ: {data.x_1821654_kokoro_0_eoc_site_type}</p>
+      )}
+    </div>
+  );
+};
+
+// ============================================
+// Earthquake Popup Content
+// ============================================
+const EarthquakePopupContent: React.FC<{ data: any }> = ({ data }) => {
+  const magnitude = data.properties.mag;
+  const depth = data.geometry.coordinates[2];
+
+  return (
+    <div className="min-w-[200px]">
+      <div className="flex items-center gap-2 mb-2">
+        <Activity className="w-4 h-4 text-kokoro-warning" />
+        <span className={clsx(
+          'px-2 py-0.5 text-xs font-bold rounded text-white',
+          magnitude >= 6 ? 'bg-status-critical' :
+          magnitude >= 5 ? 'bg-status-high' :
+          magnitude >= 4 ? 'bg-status-medium' : 'bg-kokoro-info'
+        )}>
+          M{magnitude.toFixed(1)}
+        </span>
+        {data.properties.tsunami === 1 && (
+          <span className="px-2 py-0.5 text-[10px] font-bold bg-status-critical text-white rounded animate-pulse">
+            津波注意
+          </span>
+        )}
+      </div>
+      <h4 className="font-medium text-gray-900 text-sm mb-2">{data.properties.place}</h4>
+      <div className="space-y-1 text-xs text-gray-600">
+        <p>深さ: {Math.round(depth)} km</p>
+        <p>
+          発生: {formatDistanceToNow(new Date(data.properties.time), { addSuffix: true, locale: ja })}
+        </p>
+      </div>
+      <a
+        href={data.properties.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block mt-2 text-center px-3 py-1.5 text-xs bg-kokoro-info text-white rounded hover:bg-kokoro-info/80"
+      >
+        USGS で詳細を見る
+      </a>
+    </div>
+  );
+};
+
+// ============================================
 // Main Map Panel
 // ============================================
 const MapPanel: React.FC = () => {
   const mapRef = useRef<any>(null);
-  const { viewport, setViewport, layers, toggleLayer, selectMarker } = useMapStore();
+  const [popupInfo, setPopupInfo] = useState<PopupInfo | null>(null);
+  
+  const { viewport, setViewport, layers, toggleLayer, selectMarker, selectedMarkerId } = useMapStore();
   const { selectIncident } = useAppStore();
   const { silentWishes, locations, isLoading, refetch } = useDashboardData();
   const { data: earthquakes } = useEarthquakes({ timeRange: 'day', minMagnitude: '2.5' });
@@ -114,15 +300,44 @@ const MapPanel: React.FC = () => {
     setViewport(evt.viewState);
   }, [setViewport]);
 
-  const handleIncidentClick = (id: string) => {
-    selectMarker(id);
-    selectIncident(id);
+  const handleIncidentClick = (wish: any) => {
+    selectMarker(wish.sys_id);
+    selectIncident(wish.sys_id);
+    setPopupInfo({
+      type: 'incident',
+      latitude: parseFloat(wish.latitude),
+      longitude: parseFloat(wish.longitude),
+      data: wish,
+    });
   };
 
-  // Count markers
+  const handleShelterClick = (loc: any) => {
+    setPopupInfo({
+      type: 'shelter',
+      latitude: parseFloat(loc.latitude),
+      longitude: parseFloat(loc.longitude),
+      data: loc,
+    });
+  };
+
+  const handleEarthquakeClick = (eq: any) => {
+    const [lng, lat] = eq.geometry.coordinates;
+    setPopupInfo({
+      type: 'earthquake',
+      latitude: lat,
+      longitude: lng,
+      data: eq,
+    });
+  };
+
+  // Count markers - only count those with valid coordinates
   const incidentCount = silentWishes?.filter(w => w.latitude && w.longitude).length || 0;
   const shelterCount = locations?.filter(l => l.latitude && l.longitude).length || 0;
   const earthquakeCount = earthquakes?.length || 0;
+
+  // Debug log
+  console.log('[MapPanel] silentWishes:', silentWishes?.length, 'with GPS:', incidentCount);
+  console.log('[MapPanel] Sample wish:', silentWishes?.[0]);
 
   return (
     <div className="panel h-full flex flex-col overflow-hidden">
@@ -190,17 +405,22 @@ const MapPanel: React.FC = () => {
           {layers.incidents &&
             silentWishes?.map(wish => {
               if (!wish.latitude || !wish.longitude) return null;
+              const lat = parseFloat(wish.latitude);
+              const lng = parseFloat(wish.longitude);
+              if (isNaN(lat) || isNaN(lng)) return null;
+              
               return (
                 <Marker
                   key={`incident-${wish.sys_id}`}
-                  latitude={parseFloat(wish.latitude)}
-                  longitude={parseFloat(wish.longitude)}
+                  latitude={lat}
+                  longitude={lng}
                   anchor="center"
                 >
                   <MapMarkerIcon
                     type="incident"
                     priority={wish.priority}
-                    onClick={() => handleIncidentClick(wish.sys_id)}
+                    isSelected={selectedMarkerId === wish.sys_id}
+                    onClick={() => handleIncidentClick(wish)}
                   />
                 </Marker>
               );
@@ -210,14 +430,21 @@ const MapPanel: React.FC = () => {
           {layers.shelters &&
             locations?.map(loc => {
               if (!loc.latitude || !loc.longitude) return null;
+              const lat = parseFloat(loc.latitude);
+              const lng = parseFloat(loc.longitude);
+              if (isNaN(lat) || isNaN(lng)) return null;
+              
               return (
                 <Marker
                   key={`shelter-${loc.sys_id}`}
-                  latitude={parseFloat(loc.latitude)}
-                  longitude={parseFloat(loc.longitude)}
+                  latitude={lat}
+                  longitude={lng}
                   anchor="center"
                 >
-                  <MapMarkerIcon type="shelter" />
+                  <MapMarkerIcon 
+                    type="shelter" 
+                    onClick={() => handleShelterClick(loc)}
+                  />
                 </Marker>
               );
             })}
@@ -236,11 +463,40 @@ const MapPanel: React.FC = () => {
                   <MapMarkerIcon
                     type="earthquake"
                     magnitude={eq.properties.mag}
-                    onClick={() => window.open(eq.properties.url, '_blank')}
+                    onClick={() => handleEarthquakeClick(eq)}
                   />
                 </Marker>
               );
             })}
+
+          {/* Popup */}
+          {popupInfo && (
+            <Popup
+              latitude={popupInfo.latitude}
+              longitude={popupInfo.longitude}
+              anchor="bottom"
+              onClose={() => setPopupInfo(null)}
+              closeButton={true}
+              closeOnClick={false}
+              className="kokoro-map-popup"
+            >
+              {popupInfo.type === 'incident' && (
+                <IncidentPopupContent 
+                  data={popupInfo.data} 
+                  onNavigate={() => {
+                    selectIncident(popupInfo.data.sys_id);
+                    setPopupInfo(null);
+                  }}
+                />
+              )}
+              {popupInfo.type === 'shelter' && (
+                <ShelterPopupContent data={popupInfo.data} />
+              )}
+              {popupInfo.type === 'earthquake' && (
+                <EarthquakePopupContent data={popupInfo.data} />
+              )}
+            </Popup>
+          )}
         </Map>
 
         {/* Loading Overlay */}
@@ -249,6 +505,25 @@ const MapPanel: React.FC = () => {
             <RefreshCw className="w-8 h-8 text-kokoro-accent animate-spin" />
           </div>
         )}
+
+        {/* Legend */}
+        <div className="absolute bottom-4 left-4 bg-kokoro-panel/90 backdrop-blur-sm border border-kokoro-border rounded-lg p-2">
+          <p className="text-[10px] text-kokoro-muted mb-1">凡例</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-[10px]">
+              <div className="w-3 h-3 rounded-full bg-status-critical" />
+              <span className="text-white">P1 緊急</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px]">
+              <div className="w-3 h-3 rounded-full bg-status-high" />
+              <span className="text-white">P2 高</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px]">
+              <div className="w-3 h-3 rounded-full bg-kokoro-info" />
+              <span className="text-white">避難所</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

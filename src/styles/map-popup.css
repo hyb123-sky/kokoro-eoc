@@ -1,0 +1,54 @@
+/* ============================================
+   KOKORO EOC - Map Popup Styles
+   添加到 index.css 或 App.css
+   ============================================ */
+
+/* Mapbox Popup 样式覆盖 */
+.mapboxgl-popup-content {
+  background: #1a1a2e !important;
+  border: 1px solid #2d2d44 !important;
+  border-radius: 12px !important;
+  padding: 12px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+  min-width: 200px !important;
+}
+
+.mapboxgl-popup-close-button {
+  color: #8b8b9a !important;
+  font-size: 18px !important;
+  padding: 4px 8px !important;
+  right: 4px !important;
+  top: 4px !important;
+}
+
+.mapboxgl-popup-close-button:hover {
+  color: #00f5d4 !important;
+  background: transparent !important;
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: #1a1a2e !important;
+}
+
+/* 确保 Popup 内的文字可读 */
+.kokoro-map-popup .mapboxgl-popup-content {
+  color: #ffffff;
+}
+
+.kokoro-map-popup .mapboxgl-popup-content h4 {
+  color: #ffffff;
+}
+
+.kokoro-map-popup .mapboxgl-popup-content p {
+  color: #8b8b9a;
+}
+
+/* 地震活动面板高度限制 */
+.earthquake-panel {
+  max-height: 50%;
+}
+
+/* 天气面板高度限制 */
+.weather-panel {
+  max-height: 50%;
+}

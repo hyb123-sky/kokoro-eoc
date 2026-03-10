@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import AppRouter from './app/Router';
 import './styles/globals.css';
+import './styles/map-popup.css';
 
 // ============================================
 // Query Client Configuration

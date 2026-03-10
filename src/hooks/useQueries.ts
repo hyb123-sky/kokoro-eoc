@@ -1,5 +1,5 @@
 // ============================================
-// KOKORO EOC - TanStack Query Hooks
+// KOKORO EOC - TanStack Query Hooks (Fixed)
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -136,6 +136,10 @@ export function useSilentWishes() {
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch Silent Wishes');
       }
+      
+      // Debug log
+      console.log('[useSilentWishes] Raw data:', response.data);
+      
       return response.data!;
     },
     staleTime: 1000 * 15,
@@ -276,15 +280,17 @@ export function useDashboardData() {
     weather: weather.data || null,
     isLoading,
     isError,
-    refetch: () => {
-      incidents.refetch();
-      resources.refetch();
-      locations.refetch();
-      silentWishes.refetch();
-      inventories.refetch();
-      volunteers.refetch();
-      earthquakes.refetch();
-      weather.refetch();
+    refetch: async () => {
+      await Promise.all([
+        incidents.refetch(),
+        resources.refetch(),
+        locations.refetch(),
+        silentWishes.refetch(),
+        inventories.refetch(),
+        volunteers.refetch(),
+        earthquakes.refetch(),
+        weather.refetch(),
+      ]);
     },
   };
 }
@@ -321,6 +327,7 @@ export function useOptimisticUpdateIncidentStatus() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['silentWishes'] });
     },
   });
 }
