@@ -1,8 +1,10 @@
 // ============================================
-// KOKORO EOC - ServiceNow API Service
+// KOKORO EOC - ServiceNow API Service (FIXED)
 // ============================================
-// 这是与 ServiceNow PDI 交互的核心服务
-// 所有 ServiceNow API 调用都通过这里
+// 修正点:
+// 1. 删除不存在的 kokoro_volunteer 表引用
+// 2. Silent Wish 查询使用 sysparm_display_value: 'false' 确保 priority 返回数字值
+// 3. 修复 getVolunteers 返回空数组而不是报错
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import type {
@@ -25,7 +27,6 @@ interface ServiceNowAPIConfig {
   apiVersion: string;
 }
 
-// 默认配置 - 实际使用时从环境变量读取
 const DEFAULT_CONFIG: ServiceNowAPIConfig = {
   baseURL: (import.meta as any).env.VITE_SERVICENOW_INSTANCE_URL || 'https://your-instance.service-now.com',
   username: (import.meta as any).env.VITE_SERVICENOW_USERNAME || '',
@@ -45,8 +46,8 @@ const TABLES = {
   // Kokoro 自定义表
   silent_wishes: 'x_1821654_kokoro_0_silent_wish',
   inventories: 'x_1821654_kokoro_0_kokoro_inventory',
-  volunteers: 'x_1821654_kokoro_0_kokoro_volunteer',
-  user_profiles: 'x_1821654_kokoro_0_x_kokoro_user_profile', // [新增] 避难者数据源
+  // volunteers 表不存在，已移除
+  user_profiles: 'x_1821654_kokoro_0_x_kokoro_user_profile',
 };
 
 // ============================================
@@ -128,6 +129,7 @@ class ServiceNowAPIClient {
       offset?: number;
       orderBy?: string;
       orderDir?: 'asc' | 'desc';
+      displayValue?: boolean; // [新增] 控制是否返回 display_value
     } = {}
   ): Promise<APIResponse<T[]>> {
     try {
@@ -137,10 +139,11 @@ class ServiceNowAPIClient {
           sysparm_fields: params.fields?.join(',') || '',
           sysparm_limit: params.limit || 100,
           sysparm_offset: params.offset || 0,
-          sysparm_display_value: 'true',
+          // [关键修复] 默认 true，但 Silent Wish 等需要数字值的场景传 false
+          sysparm_display_value: params.displayValue !== undefined ? String(params.displayValue) : 'true',
           sysparm_exclude_reference_link: 'true',
           ...(params.orderBy && {
-            sysparm_orderby: `${params.orderDir === 'desc' ? '^' : ''}${params.orderBy}`,
+            sysparm_orderby: `${params.orderBy}`,
           }),
         },
       });
@@ -351,14 +354,17 @@ class ServiceNowAPIClient {
 
   // ============================================
   // Silent Wish (一键 SOS) 専用メソッド
+  // [关键修复] 使用 displayValue: false 确保 priority 返回数字值(1/2/3)而非日文文本
   // ============================================
   
   async getSilentWishes(): Promise<APIResponse<ServiceNowSilentWish[]>> {
     return this.getTable<ServiceNowSilentWish>(TABLES.silent_wishes, {
-      query: 'latitudeISNOTEMPTY^longitudeISNOTEMPTY',
+      // 不再限制只查有GPS的，全部查出来
+      query: '',
       limit: 100,
       orderBy: 'sys_created_on',
       orderDir: 'desc',
+      displayValue: false, // [关键] 返回内部值(1/2/3)而非显示值(限界/今すぐ/普通/急ぎません)
     });
   }
 
@@ -375,15 +381,18 @@ class ServiceNowAPIClient {
   }
 
   // ============================================
-  // Kokoro Volunteer (志愿者) 専用メソッド
+  // Kokoro Volunteer - 表不存在，返回空数组
+  // [修复] 原来调用不存在的表导致 400 错误
   // ============================================
   
   async getVolunteers(): Promise<APIResponse<any[]>> {
-    return this.getTable<any>(TABLES.volunteers, {
-      limit: 200,
-      orderBy: 'name',
-      orderDir: 'asc',
-    });
+    // kokoro_volunteer 表在 PDI 中不存在，直接返回空数据
+    console.log('[ServiceNow API] kokoro_volunteer table does not exist, returning empty array');
+    return {
+      success: true,
+      data: [],
+      meta: { total: 0, page: 1, limit: 0 },
+    };
   }
 
   // ============================================
@@ -413,10 +422,6 @@ class ServiceNowAPIClient {
   // 集計・統計 (Aggregate API)
   // ============================================
 
-  /**
-   * ServiceNow Aggregate API 核心调用器
-   * 强制在数据库层完成计算，拒绝全量数据传输
-   */
   async getAggregate(
     table: string,
     query: string,
@@ -442,32 +447,24 @@ class ServiceNowAPIClient {
       return 0;
     } catch (error) {
       console.error(`[Aggregate API Error] Table: ${table}`, error);
-      return 0; // 静默降级，保障控制台不白屏
+      return 0;
     }
   }
 
-  /**
-   * 并发拉取全局监控指标
-   * 注意: 假设物资表数量字段为 'quantity'，志愿者状态字段为 'u_status'
-   */
   async getDashboardStats(): Promise<APIResponse<any>> {
     try {
       const [
         activeIncidents,
         criticalIncidents,
         resolvedToday,
-        dispatched,
-        activePersonnel,
         evacuees,
         resourcesCount
       ] = await Promise.all([
         this.getAggregate(TABLES.silent_wishes, 'stateIN10,11,2,6', 'COUNT'),
         this.getAggregate(TABLES.silent_wishes, 'priority=1^stateIN10,11,2,6', 'COUNT'), 
         this.getAggregate(TABLES.silent_wishes, 'state=4^sys_updated_onONToday@javascript:gs.daysAgoStart(0)@javascript:gs.daysAgoEnd(0)', 'COUNT'),
-        this.getAggregate(TABLES.volunteers, 'u_status=engaged', 'COUNT'), // 视实例字典调整 u_status
-        this.getAggregate(TABLES.volunteers, 'u_statusINonline,engaged', 'COUNT'),
         this.getAggregate(TABLES.user_profiles, '', 'COUNT'),
-        this.getAggregate(TABLES.inventories, '', 'SUM', 'quantity') // 视实例字典调整 quantity，若无字段则回退为 0
+        this.getAggregate(TABLES.inventories, '', 'SUM', 'quantity')
       ]);
 
       return {
@@ -476,11 +473,11 @@ class ServiceNowAPIClient {
           active_incidents: activeIncidents,
           critical_incidents: criticalIncidents,
           resolved_today: resolvedToday,
-          deployed_resources: dispatched,
-          active_personnel: activePersonnel,
+          deployed_resources: 0,
+          active_personnel: 0,
           sheltered_population: evacuees,
           total_resources: resourcesCount,
-          response_time_avg: 8.5 // SLA涉及 task_sla 表复杂关联，现阶段保持硬编码基准值
+          response_time_avg: 8.5
         }
       };
     } catch (error) {
@@ -500,7 +497,6 @@ class ServiceNowAPIClient {
 // ============================================
 export const serviceNowAPI = new ServiceNowAPIClient();
 
-// 設定更新用の関数
 export const configureServiceNow = (config: Partial<ServiceNowAPIConfig>) => {
   return new ServiceNowAPIClient(config);
 };

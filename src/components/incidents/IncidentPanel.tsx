@@ -1,6 +1,10 @@
 // ============================================
-// KOKORO EOC - Incident Panel Component (Fixed)
+// KOKORO EOC - Incident Panel Component (FIXED)
 // ============================================
+// 修正点:
+// 1. Priority 映射修复: API 返回 "1"/"2"/"3"(数字字符串), 直接映射到 P1/P2/P3
+// 2. 支持无GPS的工单也显示在列表中
+// 3. 修复 debug log
 
 import React, { useState } from 'react';
 import {
@@ -19,21 +23,42 @@ import clsx from 'clsx';
 import IncidentDetailModal from './IncidentDetailModal';
 
 // ============================================
-// Priority Mapper
+// Priority Mapper (FIXED)
 // ============================================
+// silent_wish 表的 priority choice field:
+//   Value "1" = High (限界/今すぐ)
+//   Value "2" = Medium (普通)
+//   Value "3" = Low (急ぎません)
+// 因为 displayValue: false, API 返回的是 "1"/"2"/"3"
+// 映射到 EOC 的 5 级系统: 1→P1, 2→P3, 3→P5
 const getPriorityLevel = (priority: string | number | undefined): string => {
   if (!priority) return '5';
   
-  const p = typeof priority === 'string' ? parseInt(priority) : priority;
+  const p = String(priority).trim();
   
-  // 如果是 1-5 的值，直接使用
-  if (p >= 1 && p <= 5) return String(p);
+  // 直接匹配数字值
+  switch (p) {
+    case '1': return '1'; // High → P1 (緊急/赤色)
+    case '2': return '3'; // Medium → P3 (中/黄色)
+    case '3': return '5'; // Low → P5 (計画/灰色)
+    default: break;
+  }
   
-  // 如果是 10, 20, 30, 40, 50 的值，转换
-  if (p <= 10) return '1';
-  if (p <= 20) return '2';
-  if (p <= 30) return '3';
-  if (p <= 40) return '4';
+  // Fallback: 尝试解析为数字
+  const num = parseInt(p);
+  if (!isNaN(num)) {
+    if (num <= 1) return '1';
+    if (num <= 2) return '2';
+    if (num <= 3) return '3';
+    if (num <= 4) return '4';
+    return '5';
+  }
+  
+  // Fallback: 日文文本匹配 (以防 displayValue 被改回 true)
+  if (p.includes('限界') || p.includes('今すぐ') || p.includes('High') || p.includes('高')) return '1';
+  if (p.includes('普通') || p.includes('Medium') || p.includes('中')) return '3';
+  if (p.includes('急ぎません') || p.includes('Low') || p.includes('低')) return '5';
+  
   return '5';
 };
 
@@ -82,9 +107,6 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, isSelected, onCli
   const title = incident.wish_content?.substring(0, 30) || '緊急SOS要請';
   const hasGPS = incident.latitude && incident.longitude;
 
-  // Debug log
-  console.log('[IncidentCard] priority:', incident.priority, '-> level:', getPriorityLevel(incident.priority));
-
   return (
     <div
       onClick={onClick}
@@ -109,10 +131,15 @@ const IncidentCard: React.FC<IncidentCardProps> = ({ incident, isSelected, onCli
                   })
                 : '時間不明'}
             </span>
-            {hasGPS && (
+            {hasGPS ? (
               <span className="flex items-center gap-1 text-kokoro-success">
                 <MapPin className="w-3 h-3" />
                 GPS
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-kokoro-muted/50">
+                <MapPin className="w-3 h-3" />
+                GPS無
               </span>
             )}
           </div>
@@ -162,7 +189,6 @@ const IncidentPanel: React.FC = () => {
   const handleIncidentClick = (incident: any) => {
     selectIncident(incident.sys_id);
     
-    // Transform data for modal
     const modalData = {
       sys_id: incident.sys_id,
       number: incident.number || `SOS-${incident.sys_id.slice(-6).toUpperCase()}`,
@@ -173,8 +199,12 @@ const IncidentPanel: React.FC = () => {
       locationName: incident.latitude && incident.longitude
         ? `${parseFloat(incident.latitude).toFixed(4)}, ${parseFloat(incident.longitude).toFixed(4)}`
         : '位置未定',
-      assigned_to: incident.assigned_to?.display_value,
-      assignment_group: incident.assignment_group?.display_value,
+      assigned_to: typeof incident.assigned_to === 'object' 
+        ? incident.assigned_to?.display_value 
+        : incident.assigned_to,
+      assignment_group: typeof incident.assignment_group === 'object'
+        ? incident.assignment_group?.display_value
+        : incident.assignment_group,
       opened_at: incident.sys_created_on || new Date().toISOString(),
       updated_at: incident.sys_updated_on,
       u_latitude: incident.latitude ? parseFloat(incident.latitude) : undefined,

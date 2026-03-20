@@ -1,6 +1,10 @@
 // ============================================
-// KOKORO EOC - TanStack Query Hooks (Fixed)
+// KOKORO EOC - TanStack Query Hooks (FIXED)
 // ============================================
+// 修正点:
+// 1. useVolunteers 不再调用不存在的表
+// 2. useSilentWishes 的 debug log 增加 priority 值检查
+// 3. useDashboardData 中 volunteers 不再阻塞加载
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceNowAPI } from '../services/servicenow';
@@ -137,10 +141,20 @@ export function useSilentWishes() {
         throw new Error(response.error?.message || 'Failed to fetch Silent Wishes');
       }
       
-      // Debug log
-      console.log('[useSilentWishes] Raw data:', response.data);
+      // Debug log - 检查 priority 值格式
+      const data = response.data || [];
+      console.log('[useSilentWishes] Raw data:', data);
+      if (data.length > 0) {
+        console.log('[useSilentWishes] Sample priority values:', data.slice(0, 3).map(d => ({
+          sys_id: d.sys_id?.slice(-6),
+          priority: d.priority,
+          priority_type: typeof d.priority,
+          lat: d.latitude,
+          lng: d.longitude,
+        })));
+      }
       
-      return response.data!;
+      return data;
     },
     staleTime: 1000 * 15,
     refetchInterval: 1000 * 30,
@@ -160,16 +174,15 @@ export function useInventories() {
   });
 }
 
+// [修复] Volunteers - 表不存在，直接返回空数组，不调用 API
 export function useVolunteers() {
   return useQuery({
     queryKey: ['volunteers'] as const,
     queryFn: async () => {
-      const response = await serviceNowAPI.getVolunteers();
-      if (!response.success) throw new Error(response.error?.message || 'Failed to fetch volunteers');
-      return response.data!;
+      // kokoro_volunteer 表不存在于 PDI 中，直接返回空数组
+      return [] as any[];
     },
-    staleTime: 1000 * 15,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 60, // 1小时缓存，因为不会有数据变化
   });
 }
 
@@ -245,17 +258,17 @@ export function useDashboardData() {
   const locations = useLocations();
   const silentWishes = useSilentWishes();
   const inventories = useInventories();
-  const volunteers = useVolunteers();
+  const volunteers = useVolunteers(); // 返回空数组，不会报错
   const earthquakes = useEarthquakes();
   const weather = useWeather(35.6762, 139.6503);
 
+  // [修复] volunteers 不参与 isLoading 判断，因为它总是立即返回
   const isLoading = 
     incidents.isLoading || 
     resources.isLoading || 
     locations.isLoading || 
     silentWishes.isLoading || 
     inventories.isLoading || 
-    volunteers.isLoading || 
     earthquakes.isLoading || 
     weather.isLoading;
 
@@ -265,7 +278,6 @@ export function useDashboardData() {
     locations.isError || 
     silentWishes.isError || 
     inventories.isError || 
-    volunteers.isError || 
     earthquakes.isError || 
     weather.isError;
 
@@ -287,7 +299,6 @@ export function useDashboardData() {
         locations.refetch(),
         silentWishes.refetch(),
         inventories.refetch(),
-        volunteers.refetch(),
         earthquakes.refetch(),
         weather.refetch(),
       ]);

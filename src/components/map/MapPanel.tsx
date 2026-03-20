@@ -1,6 +1,10 @@
 // ============================================
-// KOKORO EOC - Map Panel Component (Fixed)
+// KOKORO EOC - Map Panel Component (FIXED)
 // ============================================
+// 修正点:
+// 1. Priority 映射修复: 与 IncidentPanel 保持一致
+// 2. 地图标记颜色正确反映优先级
+// 3. 无GPS的工单不渲染标记但不报错
 
 import React, { useRef, useCallback, useState } from 'react';
 import Map, { Marker, Popup, NavigationControl, ScaleControl } from 'react-map-gl';
@@ -33,21 +37,35 @@ interface PopupInfo {
 }
 
 // ============================================
-// Priority to P-Level Mapper
+// Priority to P-Level Mapper (FIXED - 与 IncidentPanel 保持一致)
 // ============================================
 const getPriorityLevel = (priority: string | number | undefined): string => {
   if (!priority) return '5';
   
-  const p = typeof priority === 'string' ? parseInt(priority) : priority;
+  const p = String(priority).trim();
   
-  // 如果是 1-5 的值，直接使用
-  if (p >= 1 && p <= 5) return String(p);
+  // 直接匹配数字值 (displayValue: false 返回 "1"/"2"/"3")
+  switch (p) {
+    case '1': return '1'; // High → P1
+    case '2': return '3'; // Medium → P3
+    case '3': return '5'; // Low → P5
+    default: break;
+  }
   
-  // 如果是 10, 20, 30, 40, 50 的值，转换
-  if (p <= 10) return '1';
-  if (p <= 20) return '2';
-  if (p <= 30) return '3';
-  if (p <= 40) return '4';
+  const num = parseInt(p);
+  if (!isNaN(num)) {
+    if (num <= 1) return '1';
+    if (num <= 2) return '2';
+    if (num <= 3) return '3';
+    if (num <= 4) return '4';
+    return '5';
+  }
+  
+  // Fallback: 日文文本匹配
+  if (p.includes('限界') || p.includes('今すぐ') || p.includes('High')) return '1';
+  if (p.includes('普通') || p.includes('Medium')) return '3';
+  if (p.includes('急ぎません') || p.includes('Low')) return '5';
+  
   return '5';
 };
 
@@ -68,9 +86,9 @@ const MapMarkerIcon: React.FC<MapMarkerProps> = ({ type, priority, magnitude, is
     switch (level) {
       case '1': return 'bg-status-critical animate-pulse shadow-[0_0_15px_rgba(255,0,110,0.7)]';
       case '2': return 'bg-status-high shadow-[0_0_10px_rgba(255,107,53,0.5)]';
-      case '3': return 'bg-status-medium';
+      case '3': return 'bg-status-medium shadow-[0_0_8px_rgba(255,214,10,0.4)]';
       case '4': return 'bg-status-low';
-      default: return 'bg-kokoro-muted';
+      default: return 'bg-kokoro-info'; // P5 用蓝色代替灰色，在深色地图上更可见
     }
   };
 
@@ -331,13 +349,22 @@ const MapPanel: React.FC = () => {
   };
 
   // Count markers - only count those with valid coordinates
-  const incidentCount = silentWishes?.filter(w => w.latitude && w.longitude).length || 0;
+  const wishesWithGPS = silentWishes?.filter(w => {
+    if (!w.latitude || !w.longitude) return false;
+    const lat = parseFloat(w.latitude);
+    const lng = parseFloat(w.longitude);
+    return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+  }) || [];
+  
+  const incidentCount = wishesWithGPS.length;
   const shelterCount = locations?.filter(l => l.latitude && l.longitude).length || 0;
   const earthquakeCount = earthquakes?.length || 0;
 
   // Debug log
   console.log('[MapPanel] silentWishes:', silentWishes?.length, 'with GPS:', incidentCount);
-  console.log('[MapPanel] Sample wish:', silentWishes?.[0]);
+  if (wishesWithGPS.length > 0) {
+    console.log('[MapPanel] Sample wish:', wishesWithGPS[0], 'priority:', wishesWithGPS[0].priority, '→ P-level:', getPriorityLevel(wishesWithGPS[0].priority));
+  }
 
   return (
     <div className="panel h-full flex flex-col overflow-hidden">
@@ -403,11 +430,9 @@ const MapPanel: React.FC = () => {
 
           {/* Incident Markers */}
           {layers.incidents &&
-            silentWishes?.map(wish => {
-              if (!wish.latitude || !wish.longitude) return null;
+            wishesWithGPS.map(wish => {
               const lat = parseFloat(wish.latitude);
               const lng = parseFloat(wish.longitude);
-              if (isNaN(lat) || isNaN(lng)) return null;
               
               return (
                 <Marker
@@ -512,15 +537,15 @@ const MapPanel: React.FC = () => {
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-[10px]">
               <div className="w-3 h-3 rounded-full bg-status-critical" />
-              <span className="text-white">P1 緊急</span>
+              <span className="text-white">P1 緊急 (限界/今すぐ)</span>
             </div>
             <div className="flex items-center gap-2 text-[10px]">
-              <div className="w-3 h-3 rounded-full bg-status-high" />
-              <span className="text-white">P2 高</span>
+              <div className="w-3 h-3 rounded-full bg-status-medium" />
+              <span className="text-white">P3 中 (普通)</span>
             </div>
             <div className="flex items-center gap-2 text-[10px]">
               <div className="w-3 h-3 rounded-full bg-kokoro-info" />
-              <span className="text-white">避難所</span>
+              <span className="text-white">P5 低 / 避難所</span>
             </div>
           </div>
         </div>
